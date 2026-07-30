@@ -1,9 +1,9 @@
 {
-  "name": "publy",
+  "name": "lokly",
   "version": "1.0.0",
   "description": "Instant HTTP tunnels — expose localhost to the internet",
   "bin": {
-    "publy": "./dist/cli.js"
+    "lokly": "./dist/cli.js"
   },
   "files": ["dist"],
   "scripts": {

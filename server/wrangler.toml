@@ -1,12 +1,12 @@
-name = "publy"
+name = "lokly"
 main = "src/index.ts"
 compatibility_date = "2026-04-07"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
 routes = [
-  { pattern = "*-publy.heydeyo.lol/*", zone_id = "b8614434c0ce1ff1191664e84e736899" },
-  { pattern = "publy.heydeyo.lol/*", zone_id = "b8614434c0ce1ff1191664e84e736899" },
+  { pattern = "*-lokly.heydeyo.lol/*", zone_id = "b8614434c0ce1ff1191664e84e736899" },
+  { pattern = "lokly.heydeyo.lol/*", zone_id = "b8614434c0ce1ff1191664e84e736899" },
 ]
 
 [[durable_objects.bindings]]

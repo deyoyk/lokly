@@ -1,32 +1,32 @@
-# publy
+# lokly
 
 Instant HTTP tunnels for local servers.
 
 ```
-npx publy 3000
+npx lokly 3000
 
 ```
 
 ```
-Connecting to wss://publy.heydeyo.lol/register ...
+Connecting to wss://lokly.heydeyo.lol/register ...
 
 Tunnel active!
-   Public URL: https://abc123-publy.heydeyo.lol
+   Public URL: https://abc123-lokly.heydeyo.lol
    [QR code]
 
-   Forwarding localhost:3000 -> https://abc123-publy.heydeyo.lol
+   Forwarding localhost:3000 -> https://abc123-lokly.heydeyo.lol
    Press Ctrl+C to stop
 ```
 
 ## Usage
 
 ```sh
-npx publy <port>
+npx lokly <port>
 ```
 
 | Env | Default |
 |-----|---------|
-| `PUBLY_SERVER` | `wss://publy.heydeyo.lol/register` |
+| `LOKLY_SERVER` | `wss://lokly.heydeyo.lol/register` |
 ## How it works
 
 ```
