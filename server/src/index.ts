@@ -17,6 +17,7 @@ interface ProxyResponse {
 }
 
 const REQUEST_TIMEOUT = 30_000;
+const SHARDS = 10;
 
 function generateSubdomain(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -53,8 +54,12 @@ function extractSubdomain(host: string): string | null {
   return null;
 }
 
-function tunnelUrl(subdomain: string, _host: string): string {
+function tunnelUrl(subdomain: string): string {
   return `https://${subdomain}-lokly.heydeyo.lol`;
+}
+
+function shardId(subdomain: string): number {
+  return subdomain.charCodeAt(0) % SHARDS;
 }
 
 export default {
@@ -76,13 +81,13 @@ export default {
       return new Response(`Unknown host: ${host}`, { status: 400 });
     }
 
-    return handleProxy(request, env, host, subdomain);
+    return handleProxy(request, env, subdomain);
   },
 } satisfies ExportedHandler<Env>;
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
   const subdomain = generateSubdomain();
-  const doId = env.TUNNEL_DO.idFromName(subdomain);
+  const doId = env.TUNNEL_DO.idFromName(`tunnel-${shardId(subdomain)}`);
   const stub = env.TUNNEL_DO.get(doId);
 
   const host = request.headers.get("host") || "lokly.heydeyo.lol";
@@ -93,17 +98,25 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
   return stub.fetch(modified);
 }
 
-async function handleProxy(request: Request, env: Env, host: string, subdomain: string): Promise<Response> {
-  const doId = env.TUNNEL_DO.idFromName(subdomain);
+async function handleProxy(request: Request, env: Env, subdomain: string): Promise<Response> {
+  const doId = env.TUNNEL_DO.idFromName(`tunnel-${shardId(subdomain)}`);
   const stub = env.TUNNEL_DO.get(doId);
-  return stub.fetch(request);
+  const url = new URL(request.url);
+  url.searchParams.set("x-subdomain", subdomain);
+  return stub.fetch(new Request(url.toString(), request));
 }
 
 export class TunnelDO extends DurableObject<Env> {
-  private subdomain: string | null = null;
+  private subdomainToWs = new Map<string, WebSocket>();
   private pending = new Map<string, PendingRequest>();
 
   async fetch(request: Request): Promise<Response> {
+    if (this.subdomainToWs.size === 0 && this.ctx.getWebSockets().length > 0) {
+      for (const ws of this.ctx.getWebSockets()) {
+        ws.send(JSON.stringify({ type: "whoami" }));
+      }
+    }
+
     if (request.headers.get("Upgrade") === "websocket") {
       return this.handleWebSocketUpgrade(request);
     }
@@ -112,19 +125,20 @@ export class TunnelDO extends DurableObject<Env> {
 
   private async handleWebSocketUpgrade(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    this.subdomain = url.searchParams.get("subdomain");
+    const subdomain = url.searchParams.get("subdomain")!;
     const host = url.searchParams.get("host") || "lokly.heydeyo.lol";
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
     this.ctx.acceptWebSocket(server);
+    this.subdomainToWs.set(subdomain, server);
 
     server.send(
       JSON.stringify({
         type: "registered",
-        subdomain: this.subdomain,
-        url: tunnelUrl(this.subdomain!, host),
+        subdomain,
+        url: tunnelUrl(subdomain),
       })
     );
 
@@ -132,14 +146,15 @@ export class TunnelDO extends DurableObject<Env> {
   }
 
   private async handleProxyRequest(request: Request): Promise<Response> {
-    const sockets = this.ctx.getWebSockets();
-    if (sockets.length === 0) {
-      return new Response("Tunnel is not connected", { status: 502 });
+    const url = new URL(request.url);
+    const subdomain = url.searchParams.get("x-subdomain") || "";
+    const ws = this.subdomainToWs.get(subdomain);
+
+    if (!ws) {
+      return new Response("Tunnel not connected", { status: 502 });
     }
 
-    const ws = sockets[0];
     const requestId = crypto.randomUUID();
-
     const body = request.body ? await request.arrayBuffer() : new ArrayBuffer(0);
 
     ws.send(
@@ -147,8 +162,12 @@ export class TunnelDO extends DurableObject<Env> {
         type: "request",
         id: requestId,
         method: request.method,
-        path: new URL(request.url).pathname + new URL(request.url).search,
-        headers: Object.fromEntries(request.headers.entries()),
+        path: url.pathname + url.search,
+        headers: Object.fromEntries(
+          [...request.headers.entries()].filter(
+            ([k]) => k.toLowerCase() !== "x-subdomain"
+          )
+        ),
         body: body.byteLength > 0 ? arrayBufferToBase64(body) : "",
       })
     );
@@ -197,6 +216,11 @@ export class TunnelDO extends DurableObject<Env> {
       return;
     }
 
+    if (data.type === "register" && data.subdomain) {
+      this.subdomainToWs.set(data.subdomain, ws);
+      return;
+    }
+
     if (data.type === "response" && data.id) {
       const pending = this.pending.get(data.id);
       if (pending) {
@@ -211,6 +235,12 @@ export class TunnelDO extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+    for (const [sd, w] of this.subdomainToWs) {
+      if (w === ws) {
+        this.subdomainToWs.delete(sd);
+        break;
+      }
+    }
     for (const [id, pending] of this.pending) {
       pending.reject(new Error("Tunnel closed"));
     }

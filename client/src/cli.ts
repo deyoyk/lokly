@@ -54,8 +54,10 @@ function main() {
     checkUpdate();
   });
 
+  let mySubdomain = "";
+
   ws.on("message", async (raw) => {
-    let msg: ServerMessage;
+    let msg: any;
     try {
       msg = JSON.parse(raw.toString());
     } catch {
@@ -63,7 +65,15 @@ function main() {
     }
 
     switch (msg.type) {
+      case "whoami": {
+        ws.send(JSON.stringify({ type: "register", subdomain: mySubdomain }));
+        break;
+      }
+
       case "registered": {
+        mySubdomain = msg.subdomain;
+        ws.send(JSON.stringify({ type: "register", subdomain: mySubdomain }));
+
         const url = msg.url;
         console.error(`\nTunnel active!`);
         console.error(`   Public URL: ${url}`);
