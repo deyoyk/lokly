@@ -357,19 +357,6 @@ const ROOT_HTML = `<!DOCTYPE html>
       </ol>
     </div>
 
-    <div class="section">
-      <h2>env</h2>
-      <p><span style="color:#555;">LOKLY_SERVER</span> &nbsp; wss://lokly.heydeyo.lol/register</p>
-    </div>
-
-    <div class="section">
-      <h2>how it works</h2>
-      <p>
-        WebSocket tunnel via Cloudflare Workers + Durable Objects.
-        Zero persistence, free-tier friendly.
-      </p>
-    </div>
-
     <div class="footer">
       <a href="https://github.com/deyoyk/lokly">github</a>
       &nbsp;&middot;&nbsp;
