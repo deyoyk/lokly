@@ -223,13 +223,13 @@ const ROOT_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>lokly — instant HTTP tunnels</title>
+  <title>lokly</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0d1117;
-      color: #c9d1d9;
+      font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+      background: #000;
+      color: #fff;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -237,85 +237,143 @@ const ROOT_HTML = `<!DOCTYPE html>
       min-height: 100vh;
       padding: 2rem;
     }
-    .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 12px;
-      padding: 3rem 2.5rem;
-      max-width: 560px;
+    .container {
+      max-width: 600px;
       width: 100%;
-      text-align: center;
     }
-    h1 { font-size: 2.2rem; font-weight: 700; color: #58a6ff; margin-bottom: 0.4rem; }
-    .tagline { color: #8b949e; font-size: 1.05rem; margin-bottom: 2rem; }
-    .code {
-      background: #0d1117;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 1rem 1.2rem;
-      font-family: "SF Mono", "Fira Code", monospace;
-      font-size: 1.1rem;
-      color: #f0f6fc;
-      margin: 1.5rem 0;
+    .header {
+      border-bottom: 1px solid #333;
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      font-size: 1rem;
+      font-weight: 400;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+    .hero {
+      margin-bottom: 3rem;
+    }
+    .hero .prompt {
+      color: #555;
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
+    }
+    .hero .cmd {
+      font-size: 1.3rem;
+      color: #fff;
+      padding: 1rem 0;
+      border-bottom: 1px solid #222;
       user-select: all;
     }
-    .code span { color: #7ee787; }
+    .hero .cmd span {
+      color: #555;
+    }
+    .section {
+      margin-bottom: 2.5rem;
+    }
+    .section h2 {
+      font-size: 0.7rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 1rem;
+    }
+    .section p {
+      color: #aaa;
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+    .section a {
+      color: #fff;
+      text-decoration: none;
+      border-bottom: 1px solid #333;
+    }
+    .section a:hover {
+      border-bottom-color: #fff;
+    }
     .steps {
-      text-align: left;
-      margin: 1.5rem 0;
       list-style: none;
-      counter-reset: step;
     }
     .steps li {
-      counter-increment: step;
-      padding: 0.6rem 0 0.6rem 2.2rem;
-      position: relative;
-      color: #c9d1d9;
-      font-size: 0.95rem;
-      line-height: 1.5;
+      color: #aaa;
+      font-size: 0.85rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid #111;
+      display: flex;
+      gap: 1rem;
     }
     .steps li::before {
-      content: counter(step);
-      position: absolute;
-      left: 0;
-      top: 0.6rem;
-      width: 1.5rem;
-      height: 1.5rem;
-      background: #58a6ff;
-      color: #0d1117;
-      border-radius: 50%;
-      font-size: 0.75rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      content: ">";
+      color: #555;
+      flex-shrink: 0;
     }
     .footer {
-      margin-top: 2rem;
-      color: #484f58;
-      font-size: 0.85rem;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #111;
+      font-size: 0.75rem;
+      color: #333;
     }
     .footer a {
-      color: #58a6ff;
+      color: #555;
       text-decoration: none;
     }
-    .footer a:hover { text-decoration: underline; }
+    .footer a:hover {
+      color: #fff;
+    }
+    .cursor {
+      display: inline-block;
+      width: 0.6em;
+      height: 1em;
+      background: #fff;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>lokly</h1>
-    <p class="tagline">instant HTTP tunnels for local servers</p>
-    <p style="color:#8b949e;font-size:0.9rem;">Expose localhost to the internet in one command:</p>
-    <div class="code"><span>$</span> npx @deyoyk/lokly 3000</div>
-    <ol class="steps">
-      <li>Make sure your local server is running on port 3000</li>
-      <li>Run the command above</li>
-      <li>Share the generated URL with anyone</li>
-    </ol>
+  <div class="container">
+    <div class="header">
+      <h1>lokly</h1>
+    </div>
+
+    <div class="hero">
+      <div class="prompt">// expose localhost to the internet</div>
+      <div class="cmd"><span>$</span> npx @deyoyk/lokly 3000<span class="cursor"></span></div>
+    </div>
+
+    <div class="section">
+      <h2>usage</h2>
+      <ol class="steps">
+        <li>run your local server on any port</li>
+        <li>run <span style="color:#fff;">npx @deyoyk/lokly &lt;port&gt;</span></li>
+        <li>share the generated url</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>env</h2>
+      <p><span style="color:#555;">LOKLY_SERVER</span> &nbsp; wss://lokly.heydeyo.lol/register</p>
+    </div>
+
+    <div class="section">
+      <h2>how it works</h2>
+      <p>
+        WebSocket tunnel via Cloudflare Workers + Durable Objects.
+        Zero persistence, free-tier friendly.
+      </p>
+    </div>
+
     <div class="footer">
-      Made by <a href="https://github.com/deyoyk">deyo</a> &middot;
-      <a href="https://github.com/deyoyk/lokly">GitHub</a>
+      <a href="https://github.com/deyoyk/lokly">github</a>
+      &nbsp;&middot;&nbsp;
+      made by <a href="https://github.com/deyoyk">deyo</a>
     </div>
   </div>
 </body>
