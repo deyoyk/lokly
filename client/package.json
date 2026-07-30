@@ -1,16 +1,24 @@
 {
   "name": "@deyoyk/lokly",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Instant HTTP tunnels — expose localhost to the internet",
   "bin": {
     "lokly": "./dist/cli.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["tunnel", "localhost", "ngrok", "cloudflare", "workers"],
+  "keywords": [
+    "tunnel",
+    "localhost",
+    "ngrok",
+    "cloudflare",
+    "workers"
+  ],
   "license": "MIT",
   "dependencies": {
     "qrcode-terminal": "^0.12.0",
