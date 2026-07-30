@@ -315,7 +315,7 @@ const ROOT_HTML = `<!DOCTYPE html>
       padding-top: 1.5rem;
       border-top: 1px solid #111;
       font-size: 0.75rem;
-      color: #333;
+      color: #fff;
     }
     .footer a {
       color: #555;
@@ -358,9 +358,7 @@ const ROOT_HTML = `<!DOCTYPE html>
     </div>
 
     <div class="footer">
-      <a href="https://github.com/deyoyk/lokly">github</a>
-      &nbsp;&middot;&nbsp;
-      made by <a href="https://github.com/deyoyk">deyo</a>
+      made with &lt;3 by <a href="https://github.com/deyoyk" style="color:#b388ff;">deyo</a>
     </div>
   </div>
 </body>
