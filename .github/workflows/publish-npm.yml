@@ -9,6 +9,7 @@ on:
 
 permissions:
   id-token: write
+  contents: write
 
 jobs:
   publish:
@@ -19,7 +20,22 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+
       - run: npm install
         working-directory: client
+
+      - name: bump version
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          npm version patch --no-git-tag-version
+        working-directory: client
+
       - run: npm publish --access=public --provenance
         working-directory: client
+
+      - name: commit version bump
+        run: |
+          git add client/package.json client/package-lock.json
+          git diff --staged --quiet || git commit -m "auto-bump v$(node -p 'require(\"./client/package.json\").version')"
+          git push
