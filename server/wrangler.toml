@@ -16,3 +16,7 @@ class_name = "TunnelDO"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["TunnelDO"]
+
+[observability.logs]
+enabled = true
+invocation_logs = true
