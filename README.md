@@ -1,65 +1,34 @@
 # lokly
 
-Instant HTTP tunnels for local servers.
+Expose localhost to the internet. One command.
 
 ```
 npx @deyoyk/lokly 3000
-
 ```
 
-```
-Connecting to wss://lokly.heydeyo.lol/register ...
-
-Tunnel active!
-   Public URL: https://abc123-lokly.heydeyo.lol
-   [QR code]
-
-   Forwarding localhost:3000 -> https://abc123-lokly.heydeyo.lol
-   Press Ctrl+C to stop
-```
-
-## Usage
-
-```sh
-npx @deyoyk/lokly <port>
-```
-
-| Env | Default |
-|-----|---------|
-| `LOKLY_SERVER` | `wss://lokly.heydeyo.lol/register` |
 ## How it works
 
-```
-Client                    Cloudflare Worker              Your Server
-  │                           │                              │
-  ├── WebSocket ──────────────►                              │
-  │                           ├── assign random subdomain    │
-  │◄── registered + QR ───────┤                              │
-  │                           │                              │
-  │◄── HTTP request ──────────┤                              │
-  ├── forward to localhost ───┼──────────────────────────────►
-  │◄── response ──────────────┼──────────────────────────────┤
-  ├── send response back ─────►                              │
-  │                           ├── return to caller           │
+```mermaid
+sequenceDiagram
+    Browser->>Worker: GET https://abc123-lokly.heydeyo.lol
+    Worker->>Client: forward via WebSocket
+    Client->>Your Server: localhost:3000
+    Your Server->>Client: response
+    Client->>Worker: send back
+    Worker->>Browser: return to caller
 ```
 
-Server: Cloudflare Worker + Durable Object (WebSocket Hibernation API). Zero persistence, free-tier friendly.
+## Commands
 
-## Deploy server
+| | |
+|---|---|
+| Use | `npx @deyoyk/lokly <port>` |
+| Deploy server | `cd server && npm install && npx wrangler deploy` |
+| Publish client | `cd client && npm version patch && npm publish --access=public` |
 
-```sh
-cd server
-npm install
-npx wrangler deploy
-```
+## Env
 
-## Publish client
-
-```sh
-cd client
-npm version patch
-npm publish --access=public
-```
+`LOKLY_SERVER` — default: `wss://lokly.heydeyo.lol/register`
 
 ## License
 
