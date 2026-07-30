@@ -53,6 +53,14 @@ npm install
 npx wrangler deploy
 ```
 
+## Publish
+
+```sh
+cd client
+npm version patch
+npm publish --access=public
+```
+
 ## License
 
 MIT
