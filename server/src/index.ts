@@ -66,8 +66,8 @@ export default {
     }
 
     if (isRootHost(host)) {
-      return new Response("lokly tunnel server\n", {
-        headers: { "content-type": "text/plain" },
+      return new Response(ROOT_HTML, {
+        headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
 
@@ -217,6 +217,109 @@ export class TunnelDO extends DurableObject<Env> {
     this.pending.clear();
   }
 }
+
+const ROOT_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lokly — instant HTTP tunnels</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 3rem 2.5rem;
+      max-width: 560px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 { font-size: 2.2rem; font-weight: 700; color: #58a6ff; margin-bottom: 0.4rem; }
+    .tagline { color: #8b949e; font-size: 1.05rem; margin-bottom: 2rem; }
+    .code {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 1.1rem;
+      color: #f0f6fc;
+      margin: 1.5rem 0;
+      user-select: all;
+    }
+    .code span { color: #7ee787; }
+    .steps {
+      text-align: left;
+      margin: 1.5rem 0;
+      list-style: none;
+      counter-reset: step;
+    }
+    .steps li {
+      counter-increment: step;
+      padding: 0.6rem 0 0.6rem 2.2rem;
+      position: relative;
+      color: #c9d1d9;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0.6rem;
+      width: 1.5rem;
+      height: 1.5rem;
+      background: #58a6ff;
+      color: #0d1117;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .footer {
+      margin-top: 2rem;
+      color: #484f58;
+      font-size: 0.85rem;
+    }
+    .footer a {
+      color: #58a6ff;
+      text-decoration: none;
+    }
+    .footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>lokly</h1>
+    <p class="tagline">instant HTTP tunnels for local servers</p>
+    <p style="color:#8b949e;font-size:0.9rem;">Expose localhost to the internet in one command:</p>
+    <div class="code"><span>$</span> npx @deyoyk/lokly 3000</div>
+    <ol class="steps">
+      <li>Make sure your local server is running on port 3000</li>
+      <li>Run the command above</li>
+      <li>Share the generated URL with anyone</li>
+    </ol>
+    <div class="footer">
+      Made by <a href="https://github.com/deyoyk">deyo</a> &middot;
+      <a href="https://github.com/deyoyk/lokly">GitHub</a>
+    </div>
+  </div>
+</body>
+</html>`;
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
