@@ -45,7 +45,7 @@ Client                    Cloudflare Worker              Your Server
 
 Server: Cloudflare Worker + Durable Object (WebSocket Hibernation API). Zero persistence, free-tier friendly.
 
-## Deploy
+## Deploy server
 
 ```sh
 cd server
@@ -53,7 +53,7 @@ npm install
 npx wrangler deploy
 ```
 
-## Publish
+## Publish client
 
 ```sh
 cd client
