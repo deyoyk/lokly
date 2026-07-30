@@ -1,9 +1,9 @@
 {
-  "name": "lokale-tunnel",
+  "name": "publy",
   "version": "1.0.0",
   "description": "Instant HTTP tunnels — expose localhost to the internet",
   "bin": {
-    "lokale": "./dist/cli.js"
+    "publy": "./dist/cli.js"
   },
   "files": ["dist"],
   "scripts": {

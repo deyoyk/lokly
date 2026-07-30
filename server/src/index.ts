@@ -28,8 +28,8 @@ function generateSubdomain(): string {
 }
 
 const ROOT_HOSTS = [
-  "lokale.heydeyo.lol",
-  "lokale.ryme.workers.dev",
+  "publy.heydeyo.lol",
+  "publy.ryme.workers.dev",
 ];
 
 function isRootHost(host: string): boolean {
@@ -37,8 +37,8 @@ function isRootHost(host: string): boolean {
 }
 
 function extractSubdomain(host: string): string | null {
-  if (host.endsWith("-lokale.heydeyo.lol")) {
-    const prefix = host.slice(0, host.indexOf("-lokale.heydeyo.lol"));
+  if (host.endsWith("-publy.heydeyo.lol")) {
+    const prefix = host.slice(0, host.indexOf("-publy.heydeyo.lol"));
     if (prefix) return prefix;
   }
   for (const root of ROOT_HOSTS) {
@@ -54,7 +54,7 @@ function extractSubdomain(host: string): string | null {
 }
 
 function tunnelUrl(subdomain: string, _host: string): string {
-  return `https://${subdomain}-lokale.heydeyo.lol`;
+  return `https://${subdomain}-publy.heydeyo.lol`;
 }
 
 export default {
@@ -66,7 +66,7 @@ export default {
     }
 
     if (isRootHost(host)) {
-      return new Response("lokale tunnel server\n", {
+      return new Response("publy tunnel server\n", {
         headers: { "content-type": "text/plain" },
       });
     }
@@ -85,7 +85,7 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
   const doId = env.TUNNEL_DO.idFromName(subdomain);
   const stub = env.TUNNEL_DO.get(doId);
 
-  const host = request.headers.get("host") || "lokale.heydeyo.lol";
+  const host = request.headers.get("host") || "publy.heydeyo.lol";
   const url = new URL(request.url);
   url.searchParams.set("subdomain", subdomain);
   url.searchParams.set("host", host);
@@ -113,7 +113,7 @@ export class TunnelDO extends DurableObject<Env> {
   private async handleWebSocketUpgrade(request: Request): Promise<Response> {
     const url = new URL(request.url);
     this.subdomain = url.searchParams.get("subdomain");
-    const host = url.searchParams.get("host") || "lokale.heydeyo.lol";
+    const host = url.searchParams.get("host") || "publy.heydeyo.lol";
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);

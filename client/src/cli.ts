@@ -4,7 +4,7 @@ import WebSocket from "ws";
 import qrcode from "qrcode-terminal";
 
 const SERVER =
-  process.env.LOKALE_SERVER || "wss://lokale.heydeyo.lol/register";
+  process.env.PUBLY_SERVER || "wss://publy.heydeyo.lol/register";
 
 interface RequestMessage {
   type: "request";
@@ -26,7 +26,7 @@ type ServerMessage = RequestMessage | RegisteredMessage;
 function main() {
   const port = parseInt(process.argv[2] || "", 10);
   if (!port || port < 1 || port > 65535) {
-    console.error("Usage: lokale <port>");
+    console.error("Usage: publy <port>");
     process.exit(1);
   }
 
