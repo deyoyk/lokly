@@ -3,7 +3,7 @@
 Instant HTTP tunnels for local servers.
 
 ```
-npx lokly 3000
+npx @deyoyk/lokly 3000
 
 ```
 
@@ -21,7 +21,7 @@ Tunnel active!
 ## Usage
 
 ```sh
-npx lokly <port>
+npx @deyoyk/lokly <port>
 ```
 
 | Env | Default |

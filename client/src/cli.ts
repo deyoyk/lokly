@@ -26,7 +26,7 @@ type ServerMessage = RequestMessage | RegisteredMessage;
 function main() {
   const port = parseInt(process.argv[2] || "", 10);
   if (!port || port < 1 || port > 65535) {
-    console.error("Usage: lokly <port>");
+    console.error("Usage: npx @deyoyk/lokly <port>");
     process.exit(1);
   }
 

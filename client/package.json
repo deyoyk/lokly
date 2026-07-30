@@ -1,5 +1,5 @@
 {
-  "name": "lokly",
+  "name": "@deyoyk/lokly",
   "version": "1.0.0",
   "description": "Instant HTTP tunnels — expose localhost to the internet",
   "bin": {
