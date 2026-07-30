@@ -1,0 +1,25 @@
+{
+  "name": "lokale-tunnel",
+  "version": "1.0.0",
+  "description": "Instant HTTP tunnels — expose localhost to the internet",
+  "bin": {
+    "lokale": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["tunnel", "localhost", "ngrok", "cloudflare", "workers"],
+  "license": "MIT",
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.7.0"
+  }
+}
