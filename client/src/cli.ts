@@ -2,9 +2,25 @@
 
 import WebSocket from "ws";
 import qrcode from "qrcode-terminal";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const SERVER =
   process.env.LOKLY_SERVER || "wss://lokly.heydeyo.lol/register";
+
+const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8"));
+const VERSION = pkg.version as string;
+
+async function checkUpdate() {
+  try {
+    const res = await fetch("https://registry.npmjs.org/@deyoyk/lokly/latest");
+    const data: any = await res.json();
+    if (data.version && data.version !== VERSION) {
+      console.error(`\n  Update available: ${VERSION} → ${data.version}`);
+      console.error(`  Run: npm update -g @deyoyk/lokly\n`);
+    }
+  } catch {}
+}
 
 interface RequestMessage {
   type: "request";
@@ -35,7 +51,7 @@ function main() {
   const ws = new WebSocket(SERVER);
 
   ws.on("open", () => {
-    // connected, wait for registration
+    checkUpdate();
   });
 
   ws.on("message", async (raw) => {
