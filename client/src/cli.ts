@@ -39,16 +39,71 @@ interface RegisteredMessage {
 
 type ServerMessage = RequestMessage | RegisteredMessage;
 
+function validateSubdomain(name: string): string | null {
+  const s = name.toLowerCase();
+  if (
+    s.length < 1 ||
+    s.length > 63 ||
+    !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(s)
+  ) {
+    return "must be 1-63 characters, letters, digits and hyphens only (no leading/trailing hyphen)";
+  }
+  if (s === "lokly") return "'lokly' is reserved";
+  if (s.endsWith("-lokly")) return "cannot end with '-lokly'";
+  return null;
+}
+
 function main() {
-  const port = parseInt(process.argv[2] || "", 10);
+  const args = process.argv.slice(2);
+  let port: number | undefined;
+  let customSubdomain: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--subdomain") {
+      customSubdomain = args[++i];
+      if (!customSubdomain) {
+        console.error("Error: --subdomain requires a value");
+        process.exit(1);
+      }
+    } else if (arg.startsWith("--subdomain=")) {
+      customSubdomain = arg.slice("--subdomain=".length);
+    } else if (port === undefined) {
+      port = parseInt(arg, 10);
+    } else {
+      console.error(`Unknown argument: ${arg}`);
+      process.exit(1);
+    }
+  }
+
   if (!port || port < 1 || port > 65535) {
-    console.error("Usage: npx @deyoyk/lokly <port>");
+    console.error("Usage: npx @deyoyk/lokly <port> [--subdomain <name>]");
     process.exit(1);
+  }
+
+  let wsUrl = SERVER;
+  if (customSubdomain) {
+    const err = validateSubdomain(customSubdomain);
+    if (err) {
+      console.error(`Invalid subdomain "${customSubdomain}": ${err}`);
+      process.exit(1);
+    }
+    wsUrl = `${SERVER}?subdomain=${encodeURIComponent(customSubdomain)}`;
   }
 
   console.error(`Connecting to ${SERVER} ...`);
 
-  const ws = new WebSocket(SERVER);
+  const ws = new WebSocket(wsUrl);
+
+  ws.on("unexpected-response", (_req, res) => {
+    let body = "";
+    res.on("data", (chunk) => (body += chunk.toString()));
+    res.on("end", () => {
+      console.error(`\nServer rejected the request (${res.statusCode}).`);
+      if (body.trim()) console.error(body.trim());
+      process.exit(1);
+    });
+  });
 
   ws.on("open", () => {
     checkUpdate();

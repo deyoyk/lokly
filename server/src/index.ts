@@ -7,7 +7,8 @@ interface Env {
 interface PendingRequest {
   resolve: (response: ProxyResponse) => void;
   reject: (err: Error) => void;
-  timer: Timer;
+  timer: ReturnType<typeof setTimeout>;
+  ws: WebSocket;
 }
 
 interface ProxyResponse {
@@ -17,20 +18,37 @@ interface ProxyResponse {
 }
 
 const REQUEST_TIMEOUT = 30_000;
+const RESTORE_TIMEOUT = 3_000;
 const SHARDS = 10;
 
 function generateSubdomain(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 12; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
 }
 
+function sanitizeSubdomain(raw: string | null): { subdomain?: string; error?: string } {
+  if (!raw) return {};
+  const s = raw.toLowerCase();
+  if (
+    s.length < 1 ||
+    s.length > 63 ||
+    !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(s)
+  ) {
+    return { error: "Invalid subdomain: must be 1-63 characters, letters, digits and hyphens only (no leading/trailing hyphen)" };
+  }
+  if (s === "lokly") return { error: "Subdomain 'lokly' is reserved" };
+  if (s.endsWith("-lokly")) return { error: "Subdomain cannot end with '-lokly'" };
+  return { subdomain: s };
+}
+
+const BASE_HOST = "heydeyo.lol";
+
 const ROOT_HOSTS = [
   "lokly.heydeyo.lol",
-  "lokly.ryme.workers.dev",
 ];
 
 function isRootHost(host: string): boolean {
@@ -42,9 +60,16 @@ function extractSubdomain(host: string): string | null {
     const prefix = host.slice(0, host.indexOf("-lokly.heydeyo.lol"));
     if (prefix) return prefix;
   }
+  const baseParts = BASE_HOST.split(".");
+  const parts = host.split(".");
+  if (
+    parts.length === baseParts.length + 1 &&
+    parts.slice(1).join(".") === BASE_HOST
+  ) {
+    return parts[0];
+  }
   for (const root of ROOT_HOSTS) {
     const rootParts = root.split(".");
-    const parts = host.split(".");
     if (parts.length === rootParts.length + 1) {
       const subdomain = parts[0];
       const rest = parts.slice(1).join(".");
@@ -54,8 +79,10 @@ function extractSubdomain(host: string): string | null {
   return null;
 }
 
-function tunnelUrl(subdomain: string): string {
-  return `https://${subdomain}-lokly.heydeyo.lol`;
+function tunnelUrl(subdomain: string, custom: boolean): string {
+  return custom
+    ? `https://${subdomain}.heydeyo.lol`
+    : `https://${subdomain}-lokly.heydeyo.lol`;
 }
 
 function shardId(subdomain: string): number {
@@ -86,13 +113,22 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
-  const subdomain = generateSubdomain();
-  const doId = env.TUNNEL_DO.idFromName(`tunnel-${shardId(subdomain)}`);
+  const url = new URL(request.url);
+  const { subdomain, error } = sanitizeSubdomain(url.searchParams.get("subdomain"));
+  if (error) {
+    return new Response(error, {
+      status: 400,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+
+  const finalSubdomain = subdomain ?? generateSubdomain();
+  const doId = env.TUNNEL_DO.idFromName(`tunnel-${shardId(finalSubdomain)}`);
   const stub = env.TUNNEL_DO.get(doId);
 
   const host = request.headers.get("host") || "lokly.heydeyo.lol";
-  const url = new URL(request.url);
-  url.searchParams.set("subdomain", subdomain);
+  url.searchParams.set("subdomain", finalSubdomain);
+  url.searchParams.set("custom", subdomain ? "1" : "0");
   url.searchParams.set("host", host);
   const modified = new Request(url.toString(), request);
   return stub.fetch(modified);
@@ -109,24 +145,48 @@ async function handleProxy(request: Request, env: Env, subdomain: string): Promi
 export class TunnelDO extends DurableObject<Env> {
   private subdomainToWs = new Map<string, WebSocket>();
   private pending = new Map<string, PendingRequest>();
+  private restoreWaiters = new Map<string, () => void>();
 
   async fetch(request: Request): Promise<Response> {
-    if (this.subdomainToWs.size === 0 && this.ctx.getWebSockets().length > 0) {
-      for (const ws of this.ctx.getWebSockets()) {
-        ws.send(JSON.stringify({ type: "whoami" }));
-      }
-    }
-
     if (request.headers.get("Upgrade") === "websocket") {
       return this.handleWebSocketUpgrade(request);
     }
     return this.handleProxyRequest(request);
   }
 
+  private waitForSubdomain(subdomain: string, timeoutMs: number): Promise<WebSocket | undefined> {
+    return new Promise((resolve) => {
+      const existing = this.subdomainToWs.get(subdomain);
+      if (existing) {
+        resolve(existing);
+        return;
+      }
+      const timer = setTimeout(() => {
+        this.restoreWaiters.delete(subdomain);
+        resolve(this.subdomainToWs.get(subdomain));
+      }, timeoutMs);
+      this.restoreWaiters.set(subdomain, () => {
+        clearTimeout(timer);
+        resolve(this.subdomainToWs.get(subdomain));
+      });
+    });
+  }
+
   private async handleWebSocketUpgrade(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const subdomain = url.searchParams.get("subdomain")!;
     const host = url.searchParams.get("host") || "lokly.heydeyo.lol";
+    const custom = url.searchParams.get("custom") === "1";
+
+    if (custom && this.subdomainToWs.has(subdomain)) {
+      return new Response(
+        `Subdomain '${subdomain}' is unavaiable`,
+        {
+          status: 409,
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        }
+      );
+    }
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -138,7 +198,7 @@ export class TunnelDO extends DurableObject<Env> {
       JSON.stringify({
         type: "registered",
         subdomain,
-        url: tunnelUrl(subdomain),
+        url: tunnelUrl(subdomain, custom),
       })
     );
 
@@ -148,7 +208,14 @@ export class TunnelDO extends DurableObject<Env> {
   private async handleProxyRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const subdomain = url.searchParams.get("x-subdomain") || "";
-    const ws = this.subdomainToWs.get(subdomain);
+    let ws = this.subdomainToWs.get(subdomain);
+
+    if (!ws && this.ctx.getWebSockets().length > 0) {
+      for (const s of this.ctx.getWebSockets()) {
+        s.send(JSON.stringify({ type: "whoami" }));
+      }
+      ws = await this.waitForSubdomain(subdomain, RESTORE_TIMEOUT);
+    }
 
     if (!ws) {
       return new Response(TUNNEL_OFFLINE_HTML, {
@@ -205,6 +272,7 @@ export class TunnelDO extends DurableObject<Env> {
           reject(err);
         },
         timer,
+        ws,
       });
     });
   }
@@ -221,6 +289,11 @@ export class TunnelDO extends DurableObject<Env> {
 
     if (data.type === "register" && data.subdomain) {
       this.subdomainToWs.set(data.subdomain, ws);
+      const waiter = this.restoreWaiters.get(data.subdomain);
+      if (waiter) {
+        this.restoreWaiters.delete(data.subdomain);
+        waiter();
+      }
       return;
     }
 
@@ -245,9 +318,11 @@ export class TunnelDO extends DurableObject<Env> {
       }
     }
     for (const [id, pending] of this.pending) {
-      pending.reject(new Error("Tunnel closed"));
+      if (pending.ws === ws) {
+        this.pending.delete(id);
+        pending.reject(new Error("Tunnel closed"));
+      }
     }
-    this.pending.clear();
   }
 }
 
@@ -378,7 +453,7 @@ const ROOT_HTML = `<!DOCTYPE html>
 
     <div class="hero">
       <div class="prompt">// expose localhost to the internet</div>
-      <div class="cmd"><span>$</span> npx @deyoyk/lokly 3000<span class="cursor"></span></div>
+      <div class="cmd"><span>$</span> npx @deyoyk/lokly 3000 --subdomain myname<span class="cursor"></span></div>
     </div>
 
     <div class="section">
@@ -386,6 +461,7 @@ const ROOT_HTML = `<!DOCTYPE html>
       <ol class="steps">
         <li>run your local server on any port</li>
         <li>run <span style="color:#fff;">npx @deyoyk/lokly &lt;port&gt;</span></li>
+        <li>add <span style="color:#fff;">--subdomain &lt;name&gt;</span> for a custom url: <span style="color:#fff;">&lt;name&gt;.heydeyo.lol</span></li>
         <li>share the generated url</li>
       </ol>
     </div>

@@ -5,8 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
 routes = [
-  { pattern = "*-lokly.heydeyo.lol/*", zone_id = "b8614434c0ce1ff1191664e84e736899" },
-  { pattern = "lokly.heydeyo.lol/*", zone_id = "b8614434c0ce1ff1191664e84e736899" },
+  { pattern = "*.heydeyo.lol/*", zone_id = "b8614434c0ce1ff1191664e84e736899" },
 ]
 
 [[durable_objects.bindings]]

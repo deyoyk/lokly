@@ -1,6 +1,6 @@
 {
   "name": "@deyoyk/lokly",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "description": "Instant HTTP tunnels — expose localhost to the internet",
   "bin": {
     "lokly": "./dist/cli.js"
