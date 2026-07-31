@@ -2,7 +2,7 @@
 
 Expose localhost to the internet. One command.
 
-```
+```bash
 npx @deyoyk/lokly 3000
 ```
 
@@ -18,17 +18,41 @@ sequenceDiagram
     Worker->>Browser: return to caller
 ```
 
-## Commands
+## Usage
 
-| | |
-|---|---|
-| Use | `npx @deyoyk/lokly <port>` |
-| Deploy server | `cd server && npm install && npx wrangler deploy` |
-| Publish client | `cd client && npm version patch && npm publish --access=public` |
+```bash
+npx @deyoyk/lokly <port>
+```
 
-## Env
+## Developing locally
 
-`LOKLY_SERVER` — default: `wss://lokly.heydeyo.lol/register`
+### Deploy the server
+
+```bash
+cd server
+npm install
+npx wrangler deploy
+```
+
+### Publish the client
+
+```bash
+cd client
+npm version patch
+npm publish --access=public
+```
+
+### Environment variables
+
+| Variable | Default |
+|----------|---------|
+| `LOKLY_SERVER` | `wss://lokly.heydeyo.lol/register` |
+
+Override it when testing against your own server:
+
+```bash
+LOKLY_SERVER=ws://localhost:8787/register npx @deyoyk/lokly 3000
+```
 
 ## License
 
