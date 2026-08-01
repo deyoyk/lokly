@@ -14,7 +14,7 @@ interface PendingRequest {
 interface ProxyResponse {
   status: number;
   headers: Record<string, string>;
-  body: string;
+  body: Uint8Array;
 }
 
 const REQUEST_TIMEOUT = 30_000;
@@ -89,6 +89,25 @@ function shardId(subdomain: string): number {
   return subdomain.charCodeAt(0) % SHARDS;
 }
 
+function encodeEnvelope(json: object, body: Uint8Array): Uint8Array {
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
+  const out = new Uint8Array(4 + jsonBytes.byteLength + body.byteLength);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, jsonBytes.byteLength, false);
+  out.set(jsonBytes, 4);
+  out.set(body, 4 + jsonBytes.byteLength);
+  return out;
+}
+
+function decodeEnvelope(data: Uint8Array): { json: any; body: Uint8Array } {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const jsonLen = view.getUint32(0, false);
+  const json = JSON.parse(
+    new TextDecoder().decode(data.subarray(4, 4 + jsonLen))
+  );
+  return { json, body: data.subarray(4 + jsonLen) };
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const host = request.headers.get("host") || "";
@@ -137,9 +156,9 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 async function handleProxy(request: Request, env: Env, subdomain: string): Promise<Response> {
   const doId = env.TUNNEL_DO.idFromName(`tunnel-${shardId(subdomain)}`);
   const stub = env.TUNNEL_DO.get(doId);
-  const url = new URL(request.url);
-  url.searchParams.set("x-subdomain", subdomain);
-  return stub.fetch(new Request(url.toString(), request));
+  const modified = new Request(request.url, request);
+  modified.headers.set("x-subdomain", subdomain);
+  return stub.fetch(modified);
 }
 
 export class TunnelDO extends DurableObject<Env> {
@@ -172,27 +191,46 @@ export class TunnelDO extends DurableObject<Env> {
     });
   }
 
+  private rebuildFromAttachments(): void {
+    if (this.subdomainToWs.size > 0) return;
+    for (const s of this.ctx.getWebSockets()) {
+      const sub = s.deserializeAttachment();
+      if (typeof sub === "string" && !this.subdomainToWs.has(sub)) {
+        this.subdomainToWs.set(sub, s);
+      }
+    }
+  }
+
   private async handleWebSocketUpgrade(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const subdomain = url.searchParams.get("subdomain")!;
     const host = url.searchParams.get("host") || "lokly.heydeyo.lol";
     const custom = url.searchParams.get("custom") === "1";
+    const auth = url.searchParams.get("auth");
 
-    if (custom && this.subdomainToWs.has(subdomain)) {
-      return new Response(
-        `Subdomain '${subdomain}' is unavaiable`,
-        {
-          status: 409,
-          headers: { "content-type": "text/plain; charset=utf-8" },
-        }
-      );
+    if (custom) {
+      this.rebuildFromAttachments();
+      if (this.subdomainToWs.has(subdomain)) {
+        return new Response(
+          `Subdomain '${subdomain}' is unavaiable`,
+          {
+            status: 409,
+            headers: { "content-type": "text/plain; charset=utf-8" },
+          }
+        );
+      }
     }
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
     this.ctx.acceptWebSocket(server);
+    server.serializeAttachment(subdomain);
     this.subdomainToWs.set(subdomain, server);
+
+    if (auth) {
+      await this.ctx.storage.put(`auth:${subdomain}`, auth);
+    }
 
     server.send(
       JSON.stringify({
@@ -207,8 +245,29 @@ export class TunnelDO extends DurableObject<Env> {
 
   private async handleProxyRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const subdomain = url.searchParams.get("x-subdomain") || "";
+    const subdomain = request.headers.get("x-subdomain") || "";
+
+    const auth = await this.ctx.storage.get<string>(`auth:${subdomain}`);
+    if (auth) {
+      const expected = `Basic ${auth}`;
+      const provided = request.headers.get("authorization") || "";
+      if (provided !== expected) {
+        return new Response("Unauthorized", {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Basic realm="lokly"',
+            "content-type": "text/plain; charset=utf-8",
+          },
+        });
+      }
+    }
+
     let ws = this.subdomainToWs.get(subdomain);
+
+    if (!ws) {
+      this.rebuildFromAttachments();
+      ws = this.subdomainToWs.get(subdomain);
+    }
 
     if (!ws && this.ctx.getWebSockets().length > 0) {
       for (const s of this.ctx.getWebSockets()) {
@@ -217,30 +276,50 @@ export class TunnelDO extends DurableObject<Env> {
       ws = await this.waitForSubdomain(subdomain, RESTORE_TIMEOUT);
     }
 
+    const requestId = crypto.randomUUID();
+    const body = request.body
+      ? new Uint8Array(await request.arrayBuffer())
+      : new Uint8Array(0);
+
+    if (ws) {
+      try {
+        ws.send(
+          encodeEnvelope(
+            {
+              type: "request",
+              id: requestId,
+              method: request.method,
+              path: url.pathname + url.search,
+              headers: Object.fromEntries(
+                [...request.headers.entries()].filter(
+                  ([k]) => k.toLowerCase() !== "x-subdomain"
+                )
+              ),
+            },
+            body
+          )
+        );
+      } catch {
+        this.subdomainToWs.delete(subdomain);
+        ws = undefined;
+      }
+    }
+
+    if (!ws) {
+      if (this.ctx.getWebSockets().length > 0) {
+        for (const s of this.ctx.getWebSockets()) {
+          s.send(JSON.stringify({ type: "whoami" }));
+        }
+        ws = await this.waitForSubdomain(subdomain, RESTORE_TIMEOUT);
+      }
+    }
+
     if (!ws) {
       return new Response(TUNNEL_OFFLINE_HTML, {
         status: 502,
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
-
-    const requestId = crypto.randomUUID();
-    const body = request.body ? await request.arrayBuffer() : new ArrayBuffer(0);
-
-    ws.send(
-      JSON.stringify({
-        type: "request",
-        id: requestId,
-        method: request.method,
-        path: url.pathname + url.search,
-        headers: Object.fromEntries(
-          [...request.headers.entries()].filter(
-            ([k]) => k.toLowerCase() !== "x-subdomain"
-          )
-        ),
-        body: body.byteLength > 0 ? arrayBufferToBase64(body) : "",
-      })
-    );
 
     return new Promise<Response>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -257,11 +336,8 @@ export class TunnelDO extends DurableObject<Env> {
               headers.set(k, v);
             }
           }
-          const decodedBody = proxyResp.body
-            ? base64ToUint8Array(proxyResp.body)
-            : new Uint8Array(0);
           resolve(
-            new Response(decodedBody, {
+            new Response(proxyResp.body, {
               status: proxyResp.status,
               headers,
             })
@@ -278,33 +354,51 @@ export class TunnelDO extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
-    if (typeof message !== "string") return;
+    if (typeof message === "string") {
+      let data: any;
+      try {
+        data = JSON.parse(message);
+      } catch {
+        return;
+      }
 
-    let data: any;
-    try {
-      data = JSON.parse(message);
-    } catch {
-      return;
-    }
+      if (data.type === "register" && data.subdomain) {
+        this.subdomainToWs.set(data.subdomain, ws);
+        ws.serializeAttachment(data.subdomain);
+        const waiter = this.restoreWaiters.get(data.subdomain);
+        if (waiter) {
+          this.restoreWaiters.delete(data.subdomain);
+          waiter();
+        }
+        return;
+      }
 
-    if (data.type === "register" && data.subdomain) {
-      this.subdomainToWs.set(data.subdomain, ws);
-      const waiter = this.restoreWaiters.get(data.subdomain);
-      if (waiter) {
-        this.restoreWaiters.delete(data.subdomain);
-        waiter();
+      if (data.type === "response" && data.id) {
+        const pending = this.pending.get(data.id);
+        if (pending) {
+          this.pending.delete(data.id);
+          const body = data.body
+            ? base64ToUint8Array(data.body)
+            : new Uint8Array(0);
+          pending.resolve({
+            status: data.status || 200,
+            headers: data.headers || {},
+            body,
+          });
+        }
       }
       return;
     }
 
-    if (data.type === "response" && data.id) {
-      const pending = this.pending.get(data.id);
+    const { json, body } = decodeEnvelope(new Uint8Array(message));
+    if (json.type === "response" && json.id) {
+      const pending = this.pending.get(json.id);
       if (pending) {
-        this.pending.delete(data.id);
+        this.pending.delete(json.id);
         pending.resolve({
-          status: data.status || 200,
-          headers: data.headers || {},
-          body: data.body || "",
+          status: json.status || 200,
+          headers: json.headers || {},
+          body,
         });
       }
     }
@@ -314,6 +408,7 @@ export class TunnelDO extends DurableObject<Env> {
     for (const [sd, w] of this.subdomainToWs) {
       if (w === ws) {
         this.subdomainToWs.delete(sd);
+        await this.ctx.storage.delete(`auth:${sd}`);
         break;
       }
     }
@@ -323,6 +418,10 @@ export class TunnelDO extends DurableObject<Env> {
         pending.reject(new Error("Tunnel closed"));
       }
     }
+  }
+
+  async webSocketError(ws: WebSocket, error: unknown) {
+    console.error(`websocket error: ${String(error)}`);
   }
 }
 
@@ -524,15 +623,6 @@ const TUNNEL_OFFLINE_HTML = `<!DOCTYPE html>
   </div>
 </body>
 </html>`;
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
