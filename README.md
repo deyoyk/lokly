@@ -65,20 +65,23 @@ If the connection to the server drops, the client reconnects with exponential
 backoff (1s → 30s cap, reset after 30s of stability). The same public
 subdomain is re-registered on reconnect, so your URL keeps working.
 
-## Developing locally
+## Deploying
 
-### Deploy the server
+### Deploy the server (Cloudflare Worker)
 
 ```bash
 cd server
 npm install
+npx wrangler login     # first time only
 npx wrangler deploy
 ```
 
-### Publish the client
+### Publish the client (npm)
 
 ```bash
 cd client
+npm install
+npm run build
 npm version patch
 npm publish --access=public
 ```
